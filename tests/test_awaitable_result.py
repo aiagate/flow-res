@@ -2,7 +2,7 @@
 
 import pytest
 
-from flow_res import AwaitableResult, Err, Ok, Result
+from flow_res import AwaitableResult, Err, Ok, Result, UnwrapError
 from tests.testutils.error import ErrType, TestErr
 
 
@@ -138,16 +138,17 @@ async def test_result_awaitable_unwrap_ok() -> None:
 
 @pytest.mark.anyio
 async def test_result_awaitable_unwrap_err() -> None:
-    """Test that unwrap raises exception for Err."""
+    """Test that unwrap raises UnwrapError for Err."""
     error = TestErr(type=ErrType.NOT_FOUND, message="Not found")
 
     async def get_result() -> Result[int, TestErr]:
         return Err(error)
 
-    with pytest.raises(TestErr) as exc_info:
+    with pytest.raises(UnwrapError) as exc_info:
         await AwaitableResult(get_result()).unwrap()
 
-    assert exc_info.value is error
+    assert exc_info.value.error is error
+    assert exc_info.value.__cause__ is None
 
 
 @pytest.mark.anyio
@@ -166,16 +167,17 @@ async def test_result_awaitable_full_chain() -> None:
 
 @pytest.mark.anyio
 async def test_result_awaitable_full_chain_with_err() -> None:
-    """Test complete chain with Err raises exception."""
+    """Test complete chain with Err raises UnwrapError."""
     error = TestErr(type=ErrType.UNEXPECTED, message="Error")
 
     async def get_result() -> Result[int, TestErr]:
         return Err(error)
 
-    with pytest.raises(TestErr) as exc_info:
+    with pytest.raises(UnwrapError) as exc_info:
         await AwaitableResult(get_result()).map(lambda x: x * 2).unwrap()
 
-    assert exc_info.value is error
+    assert exc_info.value.error is error
+    assert exc_info.value.__cause__ is None
 
 
 @pytest.mark.anyio

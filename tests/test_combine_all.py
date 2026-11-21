@@ -1,4 +1,4 @@
-from typing import Any, assert_type
+from typing import Any, Never, assert_type
 
 from flow_res import Err, Ok, Result, combine_all
 from tests.testutils.error import ErrType, TestErr
@@ -8,12 +8,16 @@ def _typed_ok[T](value: T) -> Result[T, ValueError]:
     return Ok(value)
 
 
+def _typed_err[T](error: TestErr, _value_type: type[T]) -> Result[T, TestErr]:
+    return Err(error)
+
+
 def test_combine_all_empty_tuple() -> None:
     """An empty input succeeds with an accurately typed empty tuple."""
 
     combined = combine_all(())
 
-    assert_type(combined, Result[tuple[()], ExceptionGroup])
+    assert_type(combined, Result[tuple[()], tuple[Never, ...]])
     assert combined == Ok(())
 
 
@@ -28,7 +32,7 @@ def test_combine_all_all_ok() -> None:
 
 
 def test_combine_all_collects_all_errors() -> None:
-    """Test that combine_all collects ALL errors."""
+    """Test that combine_all collects ALL errors into a tuple."""
 
     error1 = TestErr(type=ErrType.NOT_FOUND, message="First")
     error2 = TestErr(type=ErrType.VALIDATION_ERROR, message="Second")
@@ -40,14 +44,29 @@ def test_combine_all_collects_all_errors() -> None:
         Ok(4),
         Err(error3),
     )
+
     combined = combine_all(results)
 
     assert isinstance(combined, Err)
-    assert isinstance(combined.error, ExceptionGroup)
-    assert len(combined.error.exceptions) == 3
-    assert combined.error.exceptions[0] is error1
-    assert combined.error.exceptions[1] is error2
-    assert combined.error.exceptions[2] is error3
+    assert combined.error == (error1, error2, error3)
+
+
+def test_combine_all_non_exception_errors_return_tuple() -> None:
+    """combine_all collects non-Exception values into a typed tuple."""
+
+    error1 = TestErr(type=ErrType.NOT_FOUND, message="Missing")
+    error2 = TestErr(type=ErrType.VALIDATION_ERROR, message="Invalid")
+    results = (
+        _typed_err(error1, int),
+        Ok("user@example.com"),
+        _typed_err(error2, int),
+    )
+
+    combined = combine_all(results)
+
+    assert_type(combined, Result[tuple[int, str, int], tuple[TestErr, ...]])
+    assert isinstance(combined, Err)
+    assert combined.error == (error1, error2)
 
 
 def test_combine_all_heterogeneous_types() -> None:
@@ -76,8 +95,7 @@ def test_combine_all_heterogeneous_with_errors() -> None:
     combined = combine_all((user_id, email, age))
 
     assert isinstance(combined, Err)
-    assert isinstance(combined.error, ExceptionGroup)
-    assert len(combined.error.exceptions) == 2
+    assert combined.error == (error1, error2)
 
 
 def test_combine_all_eleven_element_heterogeneous_tuple_uses_fallback_type() -> None:
@@ -98,7 +116,7 @@ def test_combine_all_eleven_element_heterogeneous_tuple_uses_fallback_type() -> 
 
     combined = combine_all(results)
 
-    assert_type(combined, Result[tuple[Any, ...], ExceptionGroup])
+    assert_type(combined, Result[tuple[Any, ...], tuple[ValueError, ...]])
     assert combined == Ok(
         (1, "two", 3.0, True, b"five", 6, "seven", 8.0, False, b"ten", 11)
     )
@@ -122,5 +140,5 @@ def test_combine_all_eleven_element_homogeneous_tuple_uses_fallback_type() -> No
 
     combined = combine_all(results)
 
-    assert_type(combined, Result[tuple[Any, ...], ExceptionGroup])
+    assert_type(combined, Result[tuple[Any, ...], tuple[ValueError, ...]])
     assert combined == Ok(tuple(range(1, 12)))

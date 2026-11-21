@@ -6,6 +6,8 @@ import pytest
 
 from flow_res import Err, Ok, Result, safe
 
+from tests.testutils.error import ErrType, TestErr
+
 
 def test_safe_decorator_wraps_exception() -> None:
     """Test that @safe decorator converts exceptions to Err."""
@@ -204,3 +206,18 @@ async def test_safe_wraps_async_callable_object() -> None:
     assert isinstance(result, Err)
     assert isinstance(result.error, ValueError)
     assert str(result.error) == "failed from callable object"
+
+
+def test_safe_error_can_be_mapped_to_non_exception_value() -> None:
+    """@safe output errors can be mapped into plain non-Exception values."""
+
+    @safe(ValueError)
+    def risky_function(value: int) -> int:
+        raise ValueError(f"invalid value: {value}")
+
+    expected = TestErr(type=ErrType.VALIDATION_ERROR, message="invalid")
+
+    result = risky_function(1).map_err(lambda _error: expected)
+
+    assert_type(result, Result[int, TestErr])
+    assert result == Err(expected)

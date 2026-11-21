@@ -54,9 +54,9 @@ def example_combine_all():
     match combined:
         case Ok(values):
             print(f"Result: Ok{values}")
-        case Err(error):
-            print(f"Result: Err with {len(error.exceptions)} errors")
-            for error in error.exceptions:
+        case Err(errors):
+            print(f"Result: Err with {len(errors)} errors")
+            for error in errors:
                 print(f"  - {error}")
 
 
@@ -91,7 +91,7 @@ def validate_credentials(username: str, password: str, email: str):
             print(f"All credentials valid: {u}, {p}, {e}")
         case Err(errors):
             print("Validation failed:")
-            for error in errors.exceptions:
+            for error in errors:
                 print(f"  - {error}")
 
 

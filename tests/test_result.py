@@ -1,7 +1,7 @@
 """Tests for Result type functional methods."""
 
 import pytest
-from flow_res import Err, Ok, Result
+from flow_res import Err, Ok, Result, UnwrapError
 
 from tests.testutils.error import ErrType, TestErr
 
@@ -43,16 +43,45 @@ def test_ok_unwrap_returns_value() -> None:
     assert value == 42
 
 
-def test_err_unwrap_raises_exception() -> None:
-    """Test that Err.unwrap raises an exception."""
+def test_err_unwrap_raises_unwrap_error_for_non_exception() -> None:
+    """Err.unwrap wraps non-Exception errors and sets no cause."""
     error = TestErr(type=ErrType.NOT_FOUND, message="User not found")
     result: Err[TestErr] = Err(error)
 
-    with pytest.raises(TestErr) as exc_info:
+    with pytest.raises(UnwrapError) as exc_info:
         result.unwrap()
 
+    assert exc_info.value.error is error
+    assert exc_info.value.__cause__ is None
     assert "User not found" in str(exc_info.value)
-    assert exc_info.value.type is ErrType.NOT_FOUND
+
+
+def test_err_unwrap_raises_unwrap_error_for_exception() -> None:
+    """Err.unwrap chains Exception errors as the cause."""
+    error = ValueError("bad value")
+    result: Err[ValueError] = Err(error)
+
+    with pytest.raises(UnwrapError) as exc_info:
+        result.unwrap()
+
+    assert exc_info.value.error is error
+    assert exc_info.value.__cause__ is error
+    assert (
+        str(exc_info.value)
+        == "Called unwrap() on an Err value: ValueError('bad value')"
+    )
+
+
+def test_err_unwrap_message_for_plain_string_error() -> None:
+    """Err.unwrap accepts plain string errors."""
+    result: Err[str] = Err("boom")
+
+    with pytest.raises(UnwrapError) as exc_info:
+        result.unwrap()
+
+    assert exc_info.value.error == "boom"
+    assert exc_info.value.__cause__ is None
+    assert str(exc_info.value) == "Called unwrap() on an Err value: 'boom'"
 
 
 def test_err_unwrap_or_returns_default() -> None:
@@ -65,16 +94,18 @@ def test_err_unwrap_or_returns_default() -> None:
     assert value == default
 
 
-def test_err_expect_raises_exception() -> None:
-    """Test that Err.expect raises with the provided message."""
+def test_err_expect_raises_unwrap_error_for_non_exception() -> None:
+    """Err.expect wraps non-Exception errors and sets no cause."""
     error = TestErr(type=ErrType.NOT_FOUND, message="User not found")
     result: Err[TestErr] = Err(error)
 
-    with pytest.raises(RuntimeError) as exc_info:
+    with pytest.raises(UnwrapError) as exc_info:
         result.expect("Expected user to exist")
 
+    assert exc_info.value.error is error
+    assert exc_info.value.__cause__ is None
     assert "Expected user to exist" in str(exc_info.value)
-    assert exc_info.value.__cause__ is error
+    assert "User not found" in str(exc_info.value)
 
 
 def test_map_chain() -> None:
@@ -113,27 +144,32 @@ def test_map_expect_chain_with_err() -> None:
     error = TestErr(type=ErrType.UNEXPECTED, message="Something went wrong")
     result: Err[TestErr] = Err(error)
 
-    with pytest.raises(RuntimeError) as exc_info:
+    with pytest.raises(UnwrapError) as exc_info:
         result.map(lambda x: x * 2).expect("Should not be an error")
 
     assert "Should not be an error" in str(exc_info.value)
+    assert exc_info.value.error is error
+    assert exc_info.value.__cause__ is None
 
 
 def test_err_expect_with_exception() -> None:
-    """Test that Err.expect raises RuntimeError for Exception errors."""
-    result: Err[Exception] = Err(Exception("Not an exception"))
+    """Test that Err.expect chains Exception errors as the cause."""
+    error = ValueError("Not an exception")
+    result: Err[ValueError] = Err(error)
 
-    with pytest.raises(RuntimeError) as exc_info:
+    with pytest.raises(UnwrapError) as exc_info:
         result.expect("Expected success")
 
-    assert "Expected success: Not an exception" in str(exc_info.value)
+    assert str(exc_info.value) == "Expected success: Not an exception"
+    assert exc_info.value.error is error
+    assert exc_info.value.__cause__ is error
 
 
-def test_usecase_error_str() -> None:
-    """Test that UseCaseError.__str__ returns the message."""
+def test_test_err_is_not_an_exception() -> None:
+    """The shared test error is a plain value, not an Exception."""
     error = TestErr(type=ErrType.NOT_FOUND, message="Resource not found")
 
-    assert str(error) == "Resource not found"
+    assert not isinstance(error, Exception)
 
 
 def test_ok_and_then_returns_new_result() -> None:
@@ -305,3 +341,13 @@ def test_map_err_error_wrapping() -> None:
     assert result.error.type == ErrType.NOT_FOUND
     assert "Record missing" in result.error.message
     assert "ID 999" in result.error.message
+
+
+def test_err_type_parameter_is_covariant() -> None:
+    """Test that Err[E] is covariant in E (subtypes/unions widen cleanly)."""
+    error = TestErr(type=ErrType.NOT_FOUND, message="missing")
+    narrow: Result[int, TestErr] = Err(error)
+    widened: Result[int, TestErr | str] = narrow
+
+    assert isinstance(widened, Err)
+    assert widened.error is error

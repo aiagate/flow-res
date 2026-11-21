@@ -63,7 +63,7 @@ def validate_user_form(email: str, age: int, username: str):
             return True
         case Err(errors):
             print("Validation failed:")
-            for error in errors.exceptions:
+            for error in errors:
                 print(f"  - {error}")
             return False
 
