@@ -1,40 +1,38 @@
 import inspect
 from collections.abc import Awaitable, Callable, Iterable, Sequence
-from typing import Any, overload
+from typing import Any, Never, overload
 
 from .result import Result, Ok, Err
 
 
 @overload
-def combine[E: Exception](results: tuple[()]) -> Result[tuple[()], E]: ...
+def combine[E](results: tuple[()]) -> Result[tuple[()], E]: ...
 
 
 @overload
-def combine[T1, E: Exception](
-    results: tuple[Result[T1, E]],
-) -> Result[tuple[T1], E]: ...
+def combine[T1, E](results: tuple[Result[T1, E]]) -> Result[tuple[T1], E]: ...
 
 
 @overload
-def combine[T1, T2, E: Exception](
+def combine[T1, T2, E](
     results: tuple[Result[T1, E], Result[T2, E]],
 ) -> Result[tuple[T1, T2], E]: ...
 
 
 @overload
-def combine[T1, T2, T3, E: Exception](
+def combine[T1, T2, T3, E](
     results: tuple[Result[T1, E], Result[T2, E], Result[T3, E]],
 ) -> Result[tuple[T1, T2, T3], E]: ...
 
 
 @overload
-def combine[T1, T2, T3, T4, E: Exception](
+def combine[T1, T2, T3, T4, E](
     results: tuple[Result[T1, E], Result[T2, E], Result[T3, E], Result[T4, E]],
 ) -> Result[tuple[T1, T2, T3, T4], E]: ...
 
 
 @overload
-def combine[T1, T2, T3, T4, T5, E: Exception](
+def combine[T1, T2, T3, T4, T5, E](
     results: tuple[
         Result[T1, E],
         Result[T2, E],
@@ -46,7 +44,7 @@ def combine[T1, T2, T3, T4, T5, E: Exception](
 
 
 @overload
-def combine[T1, T2, T3, T4, T5, T6, E: Exception](
+def combine[T1, T2, T3, T4, T5, T6, E](
     results: tuple[
         Result[T1, E],
         Result[T2, E],
@@ -59,7 +57,7 @@ def combine[T1, T2, T3, T4, T5, T6, E: Exception](
 
 
 @overload
-def combine[T1, T2, T3, T4, T5, T6, T7, E: Exception](
+def combine[T1, T2, T3, T4, T5, T6, T7, E](
     results: tuple[
         Result[T1, E],
         Result[T2, E],
@@ -73,7 +71,7 @@ def combine[T1, T2, T3, T4, T5, T6, T7, E: Exception](
 
 
 @overload
-def combine[T1, T2, T3, T4, T5, T6, T7, T8, E: Exception](
+def combine[T1, T2, T3, T4, T5, T6, T7, T8, E](
     results: tuple[
         Result[T1, E],
         Result[T2, E],
@@ -88,7 +86,7 @@ def combine[T1, T2, T3, T4, T5, T6, T7, T8, E: Exception](
 
 
 @overload
-def combine[T1, T2, T3, T4, T5, T6, T7, T8, T9, E: Exception](
+def combine[T1, T2, T3, T4, T5, T6, T7, T8, T9, E](
     results: tuple[
         Result[T1, E],
         Result[T2, E],
@@ -104,7 +102,7 @@ def combine[T1, T2, T3, T4, T5, T6, T7, T8, T9, E: Exception](
 
 
 @overload
-def combine[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, E: Exception](
+def combine[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, E](
     results: tuple[
         Result[T1, E],
         Result[T2, E],
@@ -121,14 +119,10 @@ def combine[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, E: Exception](
 
 
 @overload
-def combine[E: Exception](
-    results: Sequence[Result[Any, E]],
-) -> Result[tuple[Any, ...], E]: ...
+def combine[E](results: Sequence[Result[Any, E]]) -> Result[tuple[Any, ...], E]: ...
 
 
-def combine[E: Exception](
-    results: Sequence[Result[Any, E]],
-) -> Result[tuple[Any, ...], E]:
+def combine[E](results: Sequence[Result[Any, E]]) -> Result[tuple[Any, ...], E]:
     """
     Aggregate an already-computed sequence of ``Result`` objects.
 
@@ -153,20 +147,20 @@ def combine[E: Exception](
 
     Examples:
         Heterogeneous types (use tuple):
-        >>> user_id: Result[int, Exception] = Ok(123)
-        >>> email: Result[str, Exception] = Ok("user@example.com")
+        >>> user_id: Result[int, ValueError] = Ok(123)
+        >>> email: Result[str, ValueError] = Ok("user@example.com")
         >>> combine((user_id, email))
-        Ok((123, "user@example.com"))
+        Ok(value=(123, 'user@example.com'))
 
         Homogeneous types (use list or tuple):
         >>> results = [Ok(1), Ok(2), Ok(3)]
         >>> combine(results)
-        Ok((1, 2, 3))
+        Ok(value=(1, 2, 3))
 
         Error handling (first error returned):
-        >>> results = [Ok(1), Err(Exception("error")), Ok(3)]
+        >>> results = [Ok(1), Err(ValueError("error")), Ok(3)]
         >>> combine(results)
-        Err(Exception("error"))
+        Err(error=ValueError('error'))
     """
     values: list[Any] = []
     for r in results:
@@ -176,7 +170,7 @@ def combine[E: Exception](
     return Ok(tuple(values))
 
 
-def combine_lazy[E: Exception](
+def combine_lazy[E](
     factories: Iterable[Callable[[], Result[Any, E]]],
 ) -> Result[tuple[Any, ...], E]:
     """
@@ -197,7 +191,7 @@ def combine_lazy[E: Exception](
     Example:
         >>> factories = (lambda: Ok(1), lambda: Ok(2), lambda: Err(ValueError("error")))
         >>> combine_lazy(factories)
-        Err(ValueError("error"))
+        Err(error=ValueError('error'))
     """
     values: list[Any] = []
     for factory in factories:
@@ -208,7 +202,7 @@ def combine_lazy[E: Exception](
     return Ok(tuple(values))
 
 
-async def combine_async[E: Exception](
+async def combine_async[E](
     factories: Iterable[Callable[[], Result[Any, E] | Awaitable[Result[Any, E]]]],
 ) -> Result[tuple[Any, ...], E]:
     """
@@ -232,7 +226,7 @@ async def combine_async[E: Exception](
         >>> async def second():
         ...     return Ok(2)
         >>> await combine_async((lambda: Ok(1), second))
-        Ok((1, 2))
+        Ok(value=(1, 2))
     """
     values: list[Any] = []
     for factory in factories:
@@ -248,35 +242,35 @@ async def combine_async[E: Exception](
 @overload
 def combine_all(
     results: tuple[()],
-) -> Result[tuple[()], ExceptionGroup]: ...
+) -> Result[tuple[()], tuple[Never, ...]]: ...
 
 
 @overload
-def combine_all[T1, E: Exception](
+def combine_all[T1, E](
     results: tuple[Result[T1, E]],
-) -> Result[tuple[T1], ExceptionGroup]: ...
+) -> Result[tuple[T1], tuple[E, ...]]: ...
 
 
 @overload
-def combine_all[T1, T2, E: Exception](
+def combine_all[T1, T2, E](
     results: tuple[Result[T1, E], Result[T2, E]],
-) -> Result[tuple[T1, T2], ExceptionGroup]: ...
+) -> Result[tuple[T1, T2], tuple[E, ...]]: ...
 
 
 @overload
-def combine_all[T1, T2, T3, E: Exception](
+def combine_all[T1, T2, T3, E](
     results: tuple[Result[T1, E], Result[T2, E], Result[T3, E]],
-) -> Result[tuple[T1, T2, T3], ExceptionGroup]: ...
+) -> Result[tuple[T1, T2, T3], tuple[E, ...]]: ...
 
 
 @overload
-def combine_all[T1, T2, T3, T4, E: Exception](
+def combine_all[T1, T2, T3, T4, E](
     results: tuple[Result[T1, E], Result[T2, E], Result[T3, E], Result[T4, E]],
-) -> Result[tuple[T1, T2, T3, T4], ExceptionGroup]: ...
+) -> Result[tuple[T1, T2, T3, T4], tuple[E, ...]]: ...
 
 
 @overload
-def combine_all[T1, T2, T3, T4, T5, E: Exception](
+def combine_all[T1, T2, T3, T4, T5, E](
     results: tuple[
         Result[T1, E],
         Result[T2, E],
@@ -284,11 +278,11 @@ def combine_all[T1, T2, T3, T4, T5, E: Exception](
         Result[T4, E],
         Result[T5, E],
     ],
-) -> Result[tuple[T1, T2, T3, T4, T5], ExceptionGroup]: ...
+) -> Result[tuple[T1, T2, T3, T4, T5], tuple[E, ...]]: ...
 
 
 @overload
-def combine_all[T1, T2, T3, T4, T5, T6, E: Exception](
+def combine_all[T1, T2, T3, T4, T5, T6, E](
     results: tuple[
         Result[T1, E],
         Result[T2, E],
@@ -297,11 +291,11 @@ def combine_all[T1, T2, T3, T4, T5, T6, E: Exception](
         Result[T5, E],
         Result[T6, E],
     ],
-) -> Result[tuple[T1, T2, T3, T4, T5, T6], ExceptionGroup]: ...
+) -> Result[tuple[T1, T2, T3, T4, T5, T6], tuple[E, ...]]: ...
 
 
 @overload
-def combine_all[T1, T2, T3, T4, T5, T6, T7, E: Exception](
+def combine_all[T1, T2, T3, T4, T5, T6, T7, E](
     results: tuple[
         Result[T1, E],
         Result[T2, E],
@@ -311,11 +305,11 @@ def combine_all[T1, T2, T3, T4, T5, T6, T7, E: Exception](
         Result[T6, E],
         Result[T7, E],
     ],
-) -> Result[tuple[T1, T2, T3, T4, T5, T6, T7], ExceptionGroup]: ...
+) -> Result[tuple[T1, T2, T3, T4, T5, T6, T7], tuple[E, ...]]: ...
 
 
 @overload
-def combine_all[T1, T2, T3, T4, T5, T6, T7, T8, E: Exception](
+def combine_all[T1, T2, T3, T4, T5, T6, T7, T8, E](
     results: tuple[
         Result[T1, E],
         Result[T2, E],
@@ -326,11 +320,11 @@ def combine_all[T1, T2, T3, T4, T5, T6, T7, T8, E: Exception](
         Result[T7, E],
         Result[T8, E],
     ],
-) -> Result[tuple[T1, T2, T3, T4, T5, T6, T7, T8], ExceptionGroup]: ...
+) -> Result[tuple[T1, T2, T3, T4, T5, T6, T7, T8], tuple[E, ...]]: ...
 
 
 @overload
-def combine_all[T1, T2, T3, T4, T5, T6, T7, T8, T9, E: Exception](
+def combine_all[T1, T2, T3, T4, T5, T6, T7, T8, T9, E](
     results: tuple[
         Result[T1, E],
         Result[T2, E],
@@ -342,11 +336,11 @@ def combine_all[T1, T2, T3, T4, T5, T6, T7, T8, T9, E: Exception](
         Result[T8, E],
         Result[T9, E],
     ],
-) -> Result[tuple[T1, T2, T3, T4, T5, T6, T7, T8, T9], ExceptionGroup]: ...
+) -> Result[tuple[T1, T2, T3, T4, T5, T6, T7, T8, T9], tuple[E, ...]]: ...
 
 
 @overload
-def combine_all[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, E: Exception](
+def combine_all[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, E](
     results: tuple[
         Result[T1, E],
         Result[T2, E],
@@ -359,42 +353,53 @@ def combine_all[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, E: Exception](
         Result[T9, E],
         Result[T10, E],
     ],
-) -> Result[tuple[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10], ExceptionGroup]: ...
+) -> Result[tuple[T1, T2, T3, T4, T5, T6, T7, T8, T9, T10], tuple[E, ...]]: ...
 
 
 @overload
-def combine_all[E: Exception](
+def combine_all[E](
     results: Sequence[Result[Any, E]],
-) -> Result[tuple[Any, ...], ExceptionGroup]: ...
+) -> Result[tuple[Any, ...], tuple[E, ...]]: ...
 
 
-def combine_all[E: Exception](
+def combine_all[E](
     results: Sequence[Result[Any, E]],
-) -> Result[tuple[Any, ...], ExceptionGroup]:
+) -> Result[tuple[Any, ...], tuple[E, ...]]:
     """
-    Aggregates a tuple of Results, collecting all errors.
+    Aggregates a sequence of Results, collecting all errors.
 
     If all results are Ok, returns an Ok containing a tuple of all success values.
-    If any result is an Err, returns an Err containing an ExceptionGroup with all errors.
+    If any result is an Err, returns an Err containing a tuple of every error.
 
-    This is a "fail complete" strategy - useful for validation where you want to show
-    all errors to the user at once, rather than one at a time.
+    Errors do not have to be exceptions, so this works with dataclasses, enums,
+    strings, and other plain values.  This is a "fail complete" strategy - useful
+    for validation where you want to show all errors to the user at once, rather
+    than one at a time.
 
     Args:
-        results: A tuple of Result objects.
+        results: A sequence of Result objects.
 
     Returns:
-        Ok(tuple of success values) if all succeed,
-        or Err(ExceptionGroup("Multiple errors occurred", list of errors)) if any fail.
+        Ok(tuple of success values) if all succeed, or Err(tuple of all errors)
+        if any fail.
 
         Tuples with one to ten elements retain positional type precision.  Longer
-        tuples and general sequences use a fallback type of ``tuple[Any, ...]``.
+        tuples and general sequences use a fallback success type of
+        ``tuple[Any, ...]``.
 
-    Example:
-        >>> from app.core.result import combine_all, Ok, Err
-        >>> results = (Ok(1), Err(Exception("error1")), Ok(3), Err(Exception("error2")))
-        >>> combined = combine_all(results)
-        >>> # Returns Err(ExceptionGroup("Multiple errors occurred", [Exception("error1"), Exception("error2")]))
+    Examples:
+        Collecting every error:
+        >>> results = (Ok(1), Err(ValueError("error1")), Ok(3), Err(ValueError("error2")))
+        >>> combine_all(results)
+        Err(error=(ValueError('error1'), ValueError('error2')))
+
+        Non-exception errors:
+        >>> from dataclasses import dataclass
+        >>> @dataclass(frozen=True, slots=True)
+        ... class AppError:
+        ...     message: str
+        >>> combine_all((Ok(1), Err(AppError("bad")), Err(AppError("worse"))))
+        Err(error=(AppError(message='bad'), AppError(message='worse')))
     """
     values: list[Any] = []
     errors: list[E] = []
@@ -406,6 +411,6 @@ def combine_all[E: Exception](
             values.append(r.unwrap())
 
     if errors:
-        return Err(ExceptionGroup("Multiple errors occurred", errors))
+        return Err(tuple(errors))
 
     return Ok(tuple(values))

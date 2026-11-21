@@ -11,6 +11,27 @@ else:
     from typing_extensions import TypeVar
 
 
+class UnwrapError(Exception):
+    """Raised when ``unwrap()`` or ``expect()`` is called on an ``Err`` value.
+
+    The original error value is stored in :attr:`error`, so callers can handle
+    non-``Exception`` errors (dataclasses, enums, strings, ...) without losing
+    information. When the error is a ``BaseException``, it is also chained as
+    ``__cause__`` so the original traceback remains available.
+
+    Args:
+        error: The error value held by the ``Err``.
+        message: Optional message describing why success was expected.
+    """
+
+    def __init__(self, error: object, message: str | None = None) -> None:
+        self.error: object = error
+        if message is None:
+            super().__init__(f"Called unwrap() on an Err value: {error!r}")
+        else:
+            super().__init__(f"{message}: {error}")
+
+
 @dataclass(frozen=True)
 class Ok[T]:
     """Represents a successful result."""
@@ -33,9 +54,7 @@ class Ok[T]:
         """
         return Ok(f(self.value))
 
-    def and_then[V, F_Exc: Exception](
-        self, f: Callable[[T], "Result[V, F_Exc]"]
-    ) -> "Result[V, F_Exc]":
+    def and_then[V, F](self, f: Callable[[T], "Result[V, F]"]) -> "Result[V, F]":
         """
         Apply a function that returns a Result, flattening the nested Result.
 
@@ -50,7 +69,7 @@ class Ok[T]:
 
         Example:
             Ok(5).and_then(lambda x: Ok(x * 2))  # Returns Ok(10)
-            Ok(5).and_then(lambda x: Err(Exception("failed")))  # Returns Err(Exception("failed"))
+            Ok(5).and_then(lambda x: Err(ValueError("failed")))  # Returns Err(ValueError("failed"))
         """
         return f(self.value)
 
@@ -78,7 +97,7 @@ class Ok[T]:
         """
         return self.value
 
-    def map_err[F_Exc: Exception](self, f: Callable[[Any], F_Exc]) -> "Ok[T]":
+    def map_err[F](self, f: Callable[[Any], F]) -> "Ok[T]":
         """
         Pass through the Ok value unchanged.
 
@@ -103,12 +122,17 @@ class Ok[T]:
         return self.value
 
 
-E = TypeVar("E", bound=Exception, default=Exception)
+E = TypeVar("E", default=Exception)
 
 
 @dataclass(frozen=True)
 class Err(Generic[E]):
-    """Represents a failure result."""
+    """Represents a failure result holding an arbitrary error value.
+
+    The error is not required to be an ``Exception``; dataclasses, enums,
+    strings, and other values are valid. ``unwrap()`` and ``expect()`` wrap it
+    in :class:`UnwrapError` when they need to raise.
+    """
 
     error: E
     __match_args__ = ("error",)
@@ -125,9 +149,7 @@ class Err(Generic[E]):
         """
         return self
 
-    def and_then[V, F_Exc: Exception](
-        self, f: Callable[[Any], "Result[V, F_Exc]"]
-    ) -> "Err[E]":
+    def and_then[V, F](self, f: Callable[[Any], "Result[V, F]"]) -> "Err[E]":
         """
         Pass through the error unchanged (Railway-oriented programming pattern).
 
@@ -140,29 +162,33 @@ class Err(Generic[E]):
             Self (unchanged Err)
 
         Example:
-            Err(Exception("error")).and_then(lambda x: Ok(x * 2))  # Returns Err(Exception("error"))
+            Err(ValueError("error")).and_then(lambda x: Ok(x * 2))  # Returns Err(ValueError("error"))
         """
         return self
 
     def expect(self, msg: str) -> Never:
         """
-        Raise an exception with the provided message.
+        Raise an ``UnwrapError`` with the provided message.
 
         Used when you want to assert that this Result should be Ok.
         Requires a message explaining why the Result was expected to be Ok.
+
+        If the held error is a ``BaseException``, it is chained as ``__cause__``.
 
         Args:
             msg: Message explaining why this was expected to be Ok
 
         Raises:
-            RuntimeError: Always raised with the provided message and underlying error
+            UnwrapError: Always raised with the provided message and underlying error
 
         Example:
             result.expect("User should exist in database")
         """
-        raise RuntimeError(f"{msg}: {self.error}") from self.error
+        if isinstance(self.error, BaseException):
+            raise UnwrapError(self.error, msg) from self.error
+        raise UnwrapError(self.error, msg)
 
-    def map_err[F_Exc: Exception](self, f: Callable[[E], F_Exc]) -> "Err[F_Exc]":
+    def map_err[F](self, f: Callable[[E], F]) -> "Err[F]":
         """
         Transform the Err value using the provided function.
 
@@ -177,11 +203,17 @@ class Err(Generic[E]):
 
     def unwrap(self) -> Never:
         """
-        Raise the underlying error.
+        Raise an ``UnwrapError`` wrapping the underlying error.
 
         This ensures that unwrap() can be called on Result (Ok | Err).
+        If the held error is a ``BaseException``, it is chained as ``__cause__``.
+
+        Raises:
+            UnwrapError: Always raised with the underlying error in ``error``.
         """
-        raise self.error
+        if isinstance(self.error, BaseException):
+            raise UnwrapError(self.error) from self.error
+        raise UnwrapError(self.error)
 
     def unwrap_or[T_Def](self, default: T_Def) -> T_Def:
         """

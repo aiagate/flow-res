@@ -6,7 +6,7 @@ from typing import Any, cast
 from .result import Err, Ok, Result
 
 
-class AwaitableResult[T, E: Exception]:
+class AwaitableResult[T, E]:
     """
     Awaitable wrapper for Result that enables method chaining before await.
 
@@ -71,7 +71,7 @@ class AwaitableResult[T, E: Exception]:
 
         return AwaitableResult(mapped())
 
-    def and_then[U, F: Exception](
+    def and_then[U, F](
         self, f: Callable[[T], Awaitable[Result[U, F]] | Result[U, F]]
     ) -> "AwaitableResult[U, E | F]":
         """
@@ -110,12 +110,17 @@ class AwaitableResult[T, E: Exception]:
 
     def unwrap(self) -> Awaitable[T]:
         """
-        Return the Ok value or raise the Err as an exception.
+        Return the Ok value or raise ``UnwrapError`` for an Err.
 
         This is a terminal operation that unwraps the Result.
 
         Returns:
-            Awaitable[T] that will return the value or raise the error
+            Awaitable[T] that will return the value or raise ``UnwrapError``
+
+        Raises:
+            UnwrapError: When the underlying Result is an Err. The original
+                error value is available as ``UnwrapError.error``, and
+                ``BaseException`` errors are chained as ``__cause__``.
 
         Example:
             message = await Mediator.send_async(query).map(...).unwrap()
@@ -127,7 +132,7 @@ class AwaitableResult[T, E: Exception]:
 
         return unwrapped()
 
-    def map_err[F: Exception](self, f: Callable[[E], F]) -> "AwaitableResult[T, F]":
+    def map_err[F](self, f: Callable[[E], F]) -> "AwaitableResult[T, F]":
         """
         Transform the error value using the provided function asynchronously.
 
@@ -152,7 +157,7 @@ class AwaitableResult[T, E: Exception]:
         return AwaitableResult(mapped())
 
 
-def async_result[**P, T, E: Exception](
+def async_result[**P, T, E](
     func: Callable[P, Coroutine[Any, Any, Result[T, E]]],
 ) -> Callable[P, AwaitableResult[T, E]]:
     """

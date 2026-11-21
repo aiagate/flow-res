@@ -2,9 +2,9 @@
 
 Rust 言語の `Result` 型に範を仰いだ、Python 3.12+ 向けの小さく型付きのエラーハンドリングライブラリです。
 
-予期できる失敗を `Result[T, E]` として戻り値に表し、成功・失敗の両方を呼び出し側のコードで明示的に扱えるようにします。Python の型チェッカーやランタイムがエラー処理を強制するものではありません。未処理の `Result` を無視することも、`unwrap()` で例外として伝播させることもできます。
+予期できる失敗を `Result[T, E]` として戻り値に表し、成功・失敗の両方を呼び出し側のコードで明示的に扱えるようにします。Python の型チェッカーやランタイムがエラー処理を強制するものではありません。未処理の `Result` を無視することも、`unwrap()` で `UnwrapError` として伝播させることもできます。
 
-`Err` は `Exception` のサブクラスだけを保持します。これは `unwrap()` が元の例外を再送出できるようにするための意図的な制約です。エラーコードや文字列などの値を失敗として扱いたい用途には向きません。
+`Err` が保持する値は `Exception` に限りません。純粋なデータクラス、Enum、文字列などもエラー値として扱えます。`unwrap()` / `expect()` は、保持している値の型に関わらず `UnwrapError` を送出します。元の値は `UnwrapError.error` から取得でき、保持している値が `BaseException` の場合は `__cause__` にも設定されます。
 
 ## 主要な特徴
 
@@ -44,6 +44,46 @@ match result:
         print(f"Success: {value}")
     case Err(error):
         print(f"Failure: {error}")
+```
+
+`Err` には例外以外の値も格納できます。次の例では、データクラスをエラー値として使い、`unwrap()` が送出する `UnwrapError` から元の値を取り出しています。
+
+```python
+from dataclasses import dataclass
+from enum import Enum, auto
+
+from flow_res import Err, Ok, Result, UnwrapError
+
+
+class ErrorKind(Enum):
+    NOT_FOUND = auto()
+    INVALID = auto()
+
+
+@dataclass(frozen=True, slots=True)
+class AppError:
+    kind: ErrorKind
+    message: str
+
+
+def find_user(user_id: int) -> Result[str, AppError]:
+    if user_id <= 0:
+        return Err(AppError(ErrorKind.INVALID, "user id must be positive"))
+    return Ok(f"user-{user_id}")
+
+
+result = find_user(-1)
+match result:
+    case Ok(name):
+        print(f"Found: {name}")
+    case Err(error):
+        print(f"{error.kind.name}: {error.message}")
+
+try:
+    result.unwrap()
+except UnwrapError as exc:
+    print(isinstance(exc.error, AppError))  # True
+    print(exc.__cause__)  # None (AppError is not an exception)
 ```
 
 ### 2. 関数型インターフェースによる連鎖処理 (Railroad-Oriented Programming)
@@ -133,7 +173,7 @@ asyncio.run(main())
 * `combine`: 既に計算済みの `Result` のシーケンスを集約し、走査中に最初に遭遇した `Err` を返却する。tuple/list の入力式は `combine` 呼び出し前に評価済みなので、`Err` 以降の入力評価は止められない
 * `combine_lazy`: `Result` を返す遅延 factory を順番に呼び、最初の `Err` で後続 factory を呼ばずに停止する
 * `combine_async`: `Result` または `Awaitable[Result]` を返す遅延 factory を順番に呼び、必要なものだけ await して最初の `Err` で停止する（タスクを並列実行しない）
-* `combine_all`: すべての `Err` を集約して複数の例外を保持する `Err` を返却する（全件チェック）
+* `combine_all`: すべての `Err` を集約し、`Err(tuple[E, ...])` として全エラーを返却する（全件チェック）
 
 `combine` と `combine_all` は、1〜10 要素の異種 tuple では各要素の型を保持します。11 要素以上の tuple と一般の `Sequence` も受け付けますが、その場合の成功値は `tuple[Any, ...]` にフォールバックします。
 
@@ -152,10 +192,10 @@ print(combine(results))
 # 計算そのものを遅延させると、Err の後の factory は呼ばれない
 print(combine_lazy((lambda: Ok(1), lambda: Err(ValueError("error1")), lambda: Ok(3))))
 
-# すべてのエラーを集約して返す
+# すべてのエラーをタプルとして集約して返す
 match combine_all(results):
-    case Err(error):
-        for e in error.exceptions:
+    case Err(errors):
+        for e in errors:
             print(f"Error: {e}")
 ```
 
@@ -171,7 +211,7 @@ async def fetch_value() -> Ok[int]:
 
 async def main() -> None:
     result = await combine_async((lambda: Ok(1), fetch_value))
-    print(result)  # Ok((1, 2))
+    print(result)  # Ok(value=(1, 2))
 
 asyncio.run(main())
 ```

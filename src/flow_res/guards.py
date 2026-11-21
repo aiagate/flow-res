@@ -8,7 +8,7 @@ else:
 from .result import Err, Ok, Result
 
 
-def is_ok[T, E: Exception](result: Result[T, E]) -> TypeIs[Ok[T]]:
+def is_ok[T, E](result: Result[T, E]) -> TypeIs[Ok[T]]:
     """
     Return true if the result is ok.
 
@@ -18,7 +18,7 @@ def is_ok[T, E: Exception](result: Result[T, E]) -> TypeIs[Ok[T]]:
     return isinstance(result, Ok)
 
 
-def is_err[T, E: Exception](result: Result[T, E]) -> TypeIs[Err[E]]:
+def is_err[T, E](result: Result[T, E]) -> TypeIs[Err[E]]:
     """
     Return true if the result is an error.
 

@@ -11,15 +11,15 @@ class ErrType(Enum):
     CONCURRENCY_CONFLICT = auto()
 
 
-@dataclass(frozen=True)
-class TestErr(Exception):
-    """Represents a specific error from a use case."""
+@dataclass(frozen=True, slots=True)
+class TestErr:
+    """Represents a specific error from a use case.
+
+    Deliberately not an ``Exception`` subclass: it verifies that ``Result``
+    accepts arbitrary error values.
+    """
 
     __test__ = False
 
     type: ErrType
     message: str
-
-    def __str__(self) -> str:
-        """Return message for exception representation."""
-        return self.message
