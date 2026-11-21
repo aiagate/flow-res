@@ -341,3 +341,13 @@ def test_map_err_error_wrapping() -> None:
     assert result.error.type == ErrType.NOT_FOUND
     assert "Record missing" in result.error.message
     assert "ID 999" in result.error.message
+
+
+def test_err_type_parameter_is_covariant() -> None:
+    """Test that Err[E] is covariant in E (subtypes/unions widen cleanly)."""
+    error = TestErr(type=ErrType.NOT_FOUND, message="missing")
+    narrow: Result[int, TestErr] = Err(error)
+    widened: Result[int, TestErr | str] = narrow
+
+    assert isinstance(widened, Err)
+    assert widened.error is error

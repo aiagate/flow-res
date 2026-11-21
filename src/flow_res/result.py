@@ -122,7 +122,7 @@ class Ok[T]:
         return self.value
 
 
-E = TypeVar("E", default=Exception)
+E = TypeVar("E", default=Exception, covariant=True)
 
 
 @dataclass(frozen=True)

@@ -20,6 +20,7 @@
 
 ### Changed
 
+- `Err[E]` / `Result[T, E]` のエラー型パラメータ `E` を共変（`covariant=True`）にし、`Result[T, SubError]` から `Result[T, ErrorUnion]` や `Protocol` 型への自然な代入を可能にしました。
 - README の対象範囲、型安全性、`AwaitableResult` の単一消費制約を明確化。
 - 公開 URL を `shimae-net/flow-res` に統一。
 
